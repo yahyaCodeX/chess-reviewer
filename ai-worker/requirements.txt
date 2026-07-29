@@ -1,0 +1,2 @@
+chess
+psycopg2-binary
