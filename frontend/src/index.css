@@ -1,0 +1,258 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #09090b;
+  color: #e4e4e7;
+  min-height: 100vh;
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(24, 24, 27, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  border-radius: 1rem;
+}
+
+/* Glowing button */
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: center;
+  font-size: 0.95rem;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.65);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+}
+
+/* Textarea */
+.pgn-textarea {
+  width: 100%;
+  background: rgba(9, 9, 11, 0.9);
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  border-radius: 0.75rem;
+  color: #d4d4d8;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  padding: 0.875rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+  outline: none;
+  line-height: 1.5;
+}
+
+.pgn-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* Scrollable table container */
+.table-container {
+  overflow-y: auto;
+  max-height: 340px;
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+.table-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 2px;
+}
+
+/* Table styles */
+.moves-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.moves-table th {
+  position: sticky;
+  top: 0;
+  background: #18181b;
+  color: #71717a;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  border-bottom: 1px solid #27272a;
+  z-index: 1;
+}
+
+.moves-table td {
+  padding: 0.6rem 0.875rem;
+  border-bottom: 1px solid rgba(39, 39, 42, 0.6);
+  color: #d4d4d8;
+}
+
+.moves-table tr:hover td {
+  background: rgba(39, 39, 42, 0.4);
+}
+
+.moves-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Evaluation badges */
+.eval-positive {
+  color: #4ade80;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.eval-negative {
+  color: #f87171;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.eval-mate {
+  color: #c084fc;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+/* Player badge */
+.player-white {
+  background: rgba(255,255,255,0.1);
+  color: #f4f4f5;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.player-black {
+  background: rgba(39,39,42,0.8);
+  color: #a1a1aa;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid #3f3f46;
+}
+
+/* Status indicator */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.status-idle { background: #52525b; }
+.status-analyzing { background: #facc15; animation: pulse 1.2s ease-in-out infinite; }
+.status-complete { background: #4ade80; }
+.status-error { background: #f87171; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.4); }
+}
+
+/* Animated gradient background blobs */
+.bg-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Board shadow */
+.board-wrapper {
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.15),
+    0 25px 60px rgba(0, 0, 0, 0.6),
+    0 0 80px rgba(99, 102, 241, 0.08);
+}
+
+/* Move SAN chip */
+.move-san {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.35rem;
+  font-size: 0.82rem;
+}
+
+/* Section header */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #52525b;
+  margin-bottom: 0.75rem;
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid #27272a;
+  margin: 1.25rem 0;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  color: #3f3f46;
+  gap: 0.75rem;
+}

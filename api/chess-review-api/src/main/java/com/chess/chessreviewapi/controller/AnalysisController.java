@@ -23,6 +23,11 @@ public class AnalysisController {
         List<AnalyzedMove> moves=analyzedMoveRepository.findAll();
         return ResponseEntity.ok(moves);
     }
+    @DeleteMapping("/clear")
+    public ResponseEntity<String> clearMoves() {
+        analyzedMoveRepository.deleteAll();
+        return ResponseEntity.ok("All moves cleared");
+    }
     @PostMapping("submit")
     public ResponseEntity<String> submitGame(@RequestBody String gamePgn){
         kafkaTemplate.send("games-to-analyze",gamePgn);
@@ -31,5 +36,3 @@ public class AnalysisController {
         return ResponseEntity.ok("Game received and added to the analysis queue");
     }
 }
-
-
