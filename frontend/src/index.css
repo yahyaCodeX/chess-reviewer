@@ -83,6 +83,52 @@ body {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+/* Username Input & Secondary Button */
+.username-input {
+  background: rgba(9, 9, 11, 0.9);
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  border-radius: 0.75rem;
+  color: #d4d4d8;
+  font-size: 0.82rem;
+  padding: 0.6rem 0.875rem;
+  outline: none;
+  transition: all 0.2s;
+  flex: 1;
+  min-width: 0;
+}
+
+.username-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.btn-secondary {
+  background: rgba(39, 39, 42, 0.8);
+  color: #e4e4e7;
+  font-weight: 500;
+  padding: 0.6rem 0.875rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(63, 63, 70, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(63, 63, 70, 0.9);
+  border-color: #8b5cf6;
+  color: #ffffff;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Scrollable table container */
 .table-container {
   overflow-y: auto;
@@ -255,4 +301,87 @@ body {
   padding: 2.5rem 1rem;
   color: #3f3f46;
   gap: 0.75rem;
+}
+
+/* Move Navigation Controls */
+.btn-nav {
+  background: rgba(39, 39, 42, 0.8);
+  color: #e4e4e7;
+  border: 1px solid rgba(63, 63, 70, 0.8);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-nav:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #6366f1;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-nav:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Active Row in Table */
+.active-move-row td {
+  background: rgba(99, 102, 241, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.active-move-row {
+  border-left: 3px solid #8b5cf6;
+}
+
+/* Move Classification Badges */
+.move-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-blunder {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.badge-mistake {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.badge-inaccuracy {
+  background: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(250, 204, 21, 0.3);
+}
+
+.badge-great {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.badge-good {
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.25);
 }

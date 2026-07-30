@@ -61,8 +61,8 @@ def analyze_pgn_string(pgn_string, engine, conn, cursor):
         move_san = board.san(move)
         board.push(move)
 
-        # Ask Stockfish to evaluate
-        info = engine.analyse(board, chess.engine.Limit(time=0.1))
+        # Ask Stockfish to evaluate (1.0s = Grandmaster-level depth)
+        info = engine.analyse(board, chess.engine.Limit(time=1.0))
         score = info["score"].white()
 
         if score.is_mate():
