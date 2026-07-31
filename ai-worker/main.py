@@ -2,9 +2,9 @@ import chess.pgn
 import chess.engine
 import os
 import sys
-import psycopg2
 import io
-from kafka import KafkaConsumer
+import json
+from kafka import KafkaConsumer, KafkaProducer
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -12,35 +12,18 @@ if hasattr(sys.stdout, 'reconfigure'):
 # Define the paths relative to this script
 ENGINE_PATH = os.path.join("engine", "stockfish.exe")
 
-# Database connection settings
-DB_PARAMS = {
-    "dbname": "chess_data",
-    "user": "chess_user",
-    "password": "password123",
-    "host": "localhost",
-    "port": "5432"
-}
+def setup_kafka_producer():
+    """Setup Kafka Producer to publish analyzed moves."""
+    print("📤 Connecting Kafka Producer...")
+    producer = KafkaProducer(
+        bootstrap_servers=['localhost:9092'],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    print("✅ Kafka Producer ready!")
+    return producer
 
-def setup_database():
-    """Connect to DB and ensure our table exists."""
-    print("🔌 Connecting to the database...")
-    conn = psycopg2.connect(**DB_PARAMS)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS analyzed_move (
-            id SERIAL PRIMARY KEY,
-            move_number INTEGER,
-            player VARCHAR(10),
-            move_san VARCHAR(10),
-            evaluation VARCHAR(50)
-        )
-    """)
-    conn.commit()
-    print("✅ Database ready!")
-    return conn, cursor
-
-def analyze_pgn_string(pgn_string, engine, conn, cursor):
-    """Takes raw PGN text, runs Stockfish, and saves to DB."""
+def analyze_pgn_string(pgn_string, engine, producer):
+    """Takes raw PGN text, runs Stockfish, and publishes moves to Kafka."""
     print("\n📂 Reading game from Kafka message...")
 
     # chess.pgn.read_game expects a file-like object, not raw text
@@ -61,8 +44,8 @@ def analyze_pgn_string(pgn_string, engine, conn, cursor):
         move_san = board.san(move)
         board.push(move)
 
-        # Ask Stockfish to evaluate (1.0s = Grandmaster-level depth)
-        info = engine.analyse(board, chess.engine.Limit(time=1.0))
+        # Ask Stockfish to evaluate at fixed depth 18 (Grandmaster-level accuracy & consistency)
+        info = engine.analyse(board, chess.engine.Limit(depth=18))
         score = info["score"].white()
 
         if score.is_mate():
@@ -73,24 +56,29 @@ def analyze_pgn_string(pgn_string, engine, conn, cursor):
         actual_move_num = (move_number + 1) // 2
         print(f"Move {actual_move_num} ({player}): {move_san} | Eval: {eval_str}")
 
-        # Save to database (correct table name: analyzed_move)
-        cursor.execute("""
-            INSERT INTO analyzed_move (move_number, player, move_san, evaluation)
-            VALUES (%s, %s, %s, %s)
-        """, (actual_move_num, player, move_san, eval_str))
+        # Construct JSON payload for backend / STOMP WebSocket
+        payload = {
+            "moveNumber": actual_move_num,
+            "player": player,
+            "moveSan": move_san,
+            "evaluation": eval_str
+        }
 
-    conn.commit()
-    print("💾 Analysis complete and saved to database!")
+        # Publish to Kafka topic 'analyzed-moves'
+        producer.send('analyzed-moves', payload)
+
+    producer.flush()
+    print("📡 Analysis complete and published to Kafka topic 'analyzed-moves'!")
     print("-" * 40)
 
 def start_worker():
-    """Main loop: Listen to Kafka and process games as they arrive."""
+    """Main loop: Listen to Kafka topic 'games-to-analyze' and publish to 'analyzed-moves'."""
     if not os.path.exists(ENGINE_PATH):
         print(f"❌ Error: Could not find Stockfish at '{ENGINE_PATH}'")
         return
 
-    # 1. Setup DB
-    conn, cursor = setup_database()
+    # 1. Setup Producer
+    producer = setup_kafka_producer()
 
     # 2. Start Stockfish
     print("🤖 Waking up Stockfish...")
@@ -101,7 +89,8 @@ def start_worker():
     consumer = KafkaConsumer(
         'games-to-analyze',
         bootstrap_servers=['localhost:9092'],
-        auto_offset_reset='earliest',
+        auto_offset_reset='latest',          # Only pick up NEW messages, ignore old backlog
+        group_id='chess-worker-group',        # Kafka remembers progress for this group
         enable_auto_commit=True,
         value_deserializer=lambda x: x.decode('utf-8')
     )
@@ -112,15 +101,15 @@ def start_worker():
         for message in consumer:
             pgn_text = message.value
             print("\n🔔 BING! New message received from Spring Boot!")
-            analyze_pgn_string(pgn_text, engine, conn, cursor)
+            analyze_pgn_string(pgn_text, engine, producer)
             print("🎧 Waiting for the next game...")
 
     except KeyboardInterrupt:
         print("\n💤 Shutting down worker...")
     finally:
         engine.quit()
-        cursor.close()
-        conn.close()
+        producer.close()
+        consumer.close()
 
 if __name__ == "__main__":
     start_worker()

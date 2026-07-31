@@ -27,7 +27,12 @@ import {
   Download,
   TrendingUp,
   Sparkles,
+  Calendar,
+  Timer,
+  Search,
+  X,
 } from 'lucide-react'
+import { Client } from '@stomp/stompjs'
 import './index.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -70,7 +75,7 @@ function calculateWinProbability(evalString) {
  * winProbabilityDrop = how much the moving side's win chance FELL after their move.
  */
 function classifyMove(currentMove, previousMove) {
-  if (!currentMove) return { text: 'Good', badgeClass: 'badge-good' }
+  if (!currentMove) return { text: 'Good', label: 'Good', badgeClass: 'badge-good' }
 
   const currWinChance = calculateWinProbability(currentMove.evaluation)
   const prevWinChance = previousMove
@@ -86,18 +91,21 @@ function classifyMove(currentMove, previousMove) {
     : currWinChance - prevWinChance
 
   if (winProbabilityDrop >= 20) {
-    return { text: 'Blunder', badgeClass: 'badge-blunder' }
+    return { text: 'Blunder', label: 'Blunder', badgeClass: 'badge-blunder' }
   }
   if (winProbabilityDrop >= 10) {
-    return { text: 'Mistake', badgeClass: 'badge-mistake' }
+    return { text: 'Mistake', label: 'Mistake', badgeClass: 'badge-mistake' }
   }
   if (winProbabilityDrop >= 5) {
-    return { text: 'Inaccuracy', badgeClass: 'badge-inaccuracy' }
+    return { text: 'Inaccuracy', label: 'Inaccuracy', badgeClass: 'badge-inaccuracy' }
   }
-  if (winProbabilityDrop < -5) {
-    return { text: 'Great', badgeClass: 'badge-great' }
+  if (winProbabilityDrop <= -15) {
+    return { text: 'Brilliant!!', label: 'Brilliant', badgeClass: 'badge-brilliant' }
   }
-  return { text: 'Good', badgeClass: 'badge-good' }
+  if (winProbabilityDrop <= -5) {
+    return { text: 'Great!', label: 'Great', badgeClass: 'badge-great' }
+  }
+  return { text: 'Good', label: 'Good', badgeClass: 'badge-good' }
 }
 
 function StatusIndicator({ status }) {
@@ -152,6 +160,8 @@ export default function App() {
   const [pgnInput, setPgnInput] = useState('')
   const [chessComUsername, setChessComUsername] = useState('')
   const [isFetchingChessCom, setIsFetchingChessCom] = useState(false)
+  const [chessComGames, setChessComGames] = useState([])
+  const [selectedGameIndex, setSelectedGameIndex] = useState(-1)
   const [moves, setMoves] = useState([])
   const [status, setStatus] = useState('Idle')
   const [currentPosition, setCurrentPosition] = useState(STARTING_FEN)
@@ -161,12 +171,13 @@ export default function App() {
   const [debugError, setDebugError] = useState(null)
 
   const rowRefs = useRef([])
+  const tableContainerRef = useRef(null)
   // Tracks whether the user has manually clicked a nav button.
   // Prevents the 3-second poll from resetting their position back to the last move.
   const userHasNavigated = useRef(false)
 
-  // ── Fetch Latest Game from Chess.com API ────────────────────────────────
-  const fetchLatestChessComGame = async (username) => {
+  // ── Fetch all games from Chess.com API (latest month) ──────────────────
+  const fetchChessComGames = async (username) => {
     const cleanUser = (username || chessComUsername)?.trim()
     if (!cleanUser) {
       setDebugError('Please enter a Chess.com username.')
@@ -175,6 +186,8 @@ export default function App() {
 
     setIsFetchingChessCom(true)
     setDebugError(null)
+    setChessComGames([])
+    setSelectedGameIndex(-1)
 
     try {
       const archivesRes = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(cleanUser)}/games/archives`)
@@ -202,38 +215,125 @@ export default function App() {
         throw new Error(`No games found in the latest archive for "${cleanUser}".`)
       }
 
-      const latestGame = gamesData.games[gamesData.games.length - 1]
-      if (!latestGame.pgn) {
-        throw new Error('Latest game record does not contain a PGN string.')
-      }
-
-      setPgnInput(latestGame.pgn)
+      // Store all games, most recent first
+      const allGames = [...gamesData.games].reverse()
+      setChessComGames(allGames)
       setDebugError(null)
-      setStatus(`Loaded latest game for ${cleanUser}!`)
+      setStatus(`Found ${allGames.length} games for ${cleanUser}`)
     } catch (err) {
       console.error('Chess.com API Error:', err)
-      setDebugError(err.message || 'Error fetching game from Chess.com')
+      setDebugError(err.message || 'Error fetching games from Chess.com')
     } finally {
       setIsFetchingChessCom(false)
     }
   }
 
-  // ── Poll backend every 3 seconds ───────────────────────────────────────
+  // ── Helper: classify game result relative to the searched user ──────────
+  const getGameResult = (game) => {
+    const user = chessComUsername.trim().toLowerCase()
+    const whiteUser = (game.white?.username || '').toLowerCase()
+    const blackUser = (game.black?.username || '').toLowerCase()
+    const isWhite = whiteUser === user
+    const playerSide = isWhite ? game.white : game.black
+    const result = playerSide?.result || ''
+
+    if (result === 'win') return { text: 'Win', className: 'result-win' }
+    if (['checkmated', 'timeout', 'resigned', 'abandoned'].includes(result)) return { text: 'Loss', className: 'result-loss' }
+    return { text: 'Draw', className: 'result-draw' }
+  }
+
+  // ── Helper: format game date ────────────────────────────────────────────
+  const formatGameDate = (endTime) => {
+    if (!endTime) return ''
+    const d = new Date(endTime * 1000)
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // ── Helper: extract time control label ──────────────────────────────────
+  const formatTimeControl = (tc) => {
+    if (!tc) return '?'
+    const parts = tc.split('+')
+    const base = parseInt(parts[0], 10)
+    const inc = parts[1] ? parseInt(parts[1], 10) : 0
+    if (base >= 600) return `${Math.floor(base / 60)}+${inc}`
+    return `${Math.floor(base / 60)}+${inc}`
+  }
+
+  // ── Select a game from the browser ─────────────────────────────────────
+  const handleSelectGame = (idx) => {
+    setSelectedGameIndex(idx)
+    const game = chessComGames[idx]
+    if (game?.pgn) {
+      setPgnInput(game.pgn)
+    }
+  }
+
+  // ── Close the game browser ─────────────────────────────────────────────
+  const handleCloseGameBrowser = () => {
+    setChessComGames([])
+    setSelectedGameIndex(-1)
+  }
+
+  // ── STOMP WebSocket (real-time) + HTTP Polling (fallback) ────────────────
+  useEffect(() => {
+    const client = new Client({
+      brokerURL: 'ws://localhost:8080/ws',
+      reconnectDelay: 5000,
+      onConnect: () => {
+        console.log('✅ Connected to STOMP WebSocket')
+
+        client.subscribe('/topic/moves', (message) => {
+          try {
+            const moveData = JSON.parse(message.body)
+            console.log('⚡ Real-time move via WebSocket:', moveData)
+
+            setMoves(prevMoves => {
+              const updated = [...prevMoves, moveData]
+              if (!userHasNavigated.current) {
+                setCurrentMoveIndex(updated.length - 1)
+              }
+              return updated
+            })
+
+            setStatus('Analyzing Engine Data...')
+          } catch (err) {
+            console.error('Error parsing WebSocket move:', err)
+          }
+        })
+      },
+      onStompError: (frame) => {
+        console.error('STOMP Error:', frame.headers?.['message'], frame.body)
+      },
+      onWebSocketError: (err) => {
+        console.warn('WebSocket connection failed, HTTP polling is active as fallback.', err)
+      }
+    })
+
+    client.activate()
+
+    return () => {
+      client.deactivate()
+    }
+  }, [])
+
+  // ── HTTP Polling Fallback (always runs, guarantees moves appear) ────────
   const fetchMoves = useCallback(async () => {
     try {
       const res = await fetch('/api/analysis/moves')
-      if (!res.ok) throw new Error('Server error')
+      if (!res.ok) return
       const data = await res.json()
-      
-      const sortedData = [...data].sort((a, b) => (a.id || 0) - (b.id || 0))
-      setMoves(sortedData)
-      
-      setStatus(prev =>
-        sortedData.length > 0 ? 'Analysis Complete' : (prev === 'Analyzing Engine Data...' ? prev : 'Idle')
-      )
-    } catch (err) {
-      console.error("Fetch error:", err)
-      setStatus(prev => prev === 'Idle' ? 'Error connecting to server' : prev)
+
+      if (data.length > 0) {
+        const sortedData = [...data].sort((a, b) => (a.id || 0) - (b.id || 0))
+        setMoves(prev => {
+          // Only update if polling found more moves than we have (avoid overwriting WS data)
+          if (sortedData.length > prev.length) return sortedData
+          return prev
+        })
+        setStatus('Analysis Complete')
+      }
+    } catch {
+      // Silently ignore — WebSocket is the primary channel
     }
   }, [])
 
@@ -304,14 +404,15 @@ export default function App() {
       const classification = classifyMove(curMove, prevMove)
 
       const highlightColors = {
-        Blunder: 'rgba(239, 68, 68, 0.65)',
-        Mistake: 'rgba(249, 115, 22, 0.65)',
-        Inaccuracy: 'rgba(234, 179, 8, 0.65)',
-        Great: 'rgba(6, 182, 212, 0.65)',
-        Good: 'rgba(34, 197, 94, 0.55)',
+        'Brilliant!!': 'rgba(27, 193, 161, 0.75)',
+        'Great!': 'rgba(92, 139, 176, 0.75)',
+        Blunder: 'rgba(202, 52, 49, 0.75)',
+        Mistake: 'rgba(229, 143, 42, 0.75)',
+        Inaccuracy: 'rgba(240, 193, 92, 0.75)',
+        Good: 'rgba(129, 182, 76, 0.65)',
       }
 
-      const toColor = highlightColors[classification.text] || 'rgba(34, 197, 94, 0.55)'
+      const toColor = highlightColors[classification.text] || 'rgba(129, 182, 76, 0.65)'
 
       setSquareStyles({
         [lastMoveVerbose.from]: { backgroundColor: 'rgba(253, 224, 71, 0.45)' },
@@ -322,15 +423,52 @@ export default function App() {
     }
   }, [moves, currentMoveIndex])
 
-  // ── Auto-scroll active row in moves table ──────────────────────────────
+  // ── Auto-scroll active row in moves table WITHOUT jumping main page ──────
   useEffect(() => {
-    if (currentMoveIndex >= 0 && rowRefs.current[currentMoveIndex]) {
-      rowRefs.current[currentMoveIndex].scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      })
+    if (currentMoveIndex >= 0 && rowRefs.current[currentMoveIndex] && tableContainerRef.current) {
+      const container = tableContainerRef.current
+      const row = rowRefs.current[currentMoveIndex]
+      const rowTop = row.offsetTop
+      const rowBottom = rowTop + row.offsetHeight
+      const containerTop = container.scrollTop
+      const containerBottom = containerTop + container.clientHeight
+
+      if (rowTop < containerTop) {
+        container.scrollTop = rowTop
+      } else if (rowBottom > containerBottom) {
+        container.scrollTop = rowBottom - container.clientHeight
+      }
     }
   }, [currentMoveIndex])
+
+  // ── Keyboard Arrow Keys Navigation (Left/Right Arrow) ───────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger if user is typing inside input or textarea
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        userHasNavigated.current = true
+        setCurrentMoveIndex(prev => Math.max(-1, prev - 1))
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        userHasNavigated.current = true
+        setCurrentMoveIndex(prev => Math.min(moves.length - 1, prev + 1))
+      } else if (e.key === 'Home') {
+        e.preventDefault()
+        userHasNavigated.current = true
+        setCurrentMoveIndex(-1)
+      } else if (e.key === 'End') {
+        e.preventDefault()
+        userHasNavigated.current = true
+        setCurrentMoveIndex(moves.length - 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [moves.length])
 
   // ── Submit PGN to backend ──────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -443,9 +581,9 @@ export default function App() {
               <Database size={13} />
               <span>{moves.length} moves indexed</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#52525b', fontSize: '0.78rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#4ade80', fontSize: '0.78rem', fontWeight: 600 }}>
               <Activity size={13} />
-              <span>Live · 3s refresh</span>
+              <span>STOMP WebSocket Live</span>
             </div>
           </div>
         </header>
@@ -667,22 +805,88 @@ export default function App() {
                   value={chessComUsername}
                   onChange={e => setChessComUsername(e.target.value)}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') fetchLatestChessComGame(chessComUsername)
+                    if (e.key === 'Enter') fetchChessComGames(chessComUsername)
                   }}
                 />
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => fetchLatestChessComGame(chessComUsername)}
+                  onClick={() => fetchChessComGames(chessComUsername)}
                   disabled={isFetchingChessCom || !chessComUsername.trim()}
                 >
                   {isFetchingChessCom ? (
                     <><Loader2 size={14} className="animate-spin" /> Fetching...</>
                   ) : (
-                    <><Download size={14} /> Fetch Latest Game</>
+                    <><Search size={14} /> Fetch Games</>
                   )}
                 </button>
               </div>
+
+              {/* ── Game Browser Panel ── */}
+              {chessComGames.length > 0 && (
+                <div style={{ marginBottom: '0.875rem' }}>
+                  <div className="game-browser-header">
+                    <p className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                      <Swords size={11} /> Select a Game to Review
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="game-count">{chessComGames.length} games</span>
+                      <button
+                        type="button"
+                        onClick={handleCloseGameBrowser}
+                        style={{
+                          background: 'transparent', border: 'none', color: '#71717a',
+                          cursor: 'pointer', padding: '0.2rem', display: 'flex',
+                          alignItems: 'center', borderRadius: '0.35rem',
+                          transition: 'color 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#71717a'}
+                        title="Close game browser"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="game-browser">
+                    {chessComGames.map((game, idx) => {
+                      const result = getGameResult(game)
+                      const isSelected = idx === selectedGameIndex
+                      return (
+                        <div
+                          key={game.url || idx}
+                          className={`game-row ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSelectGame(idx)}
+                        >
+                          <div className="game-row-players">
+                            <div className="player-line">
+                              <span style={{ color: '#f4f4f5' }}>⬜</span>
+                              <span>{game.white?.username || 'Unknown'}</span>
+                              <span className="rating">({game.white?.rating || '?'})</span>
+                            </div>
+                            <div className="player-line">
+                              <span style={{ color: '#71717a' }}>⬛</span>
+                              <span>{game.black?.username || 'Unknown'}</span>
+                              <span className="rating">({game.black?.rating || '?'})</span>
+                            </div>
+                          </div>
+                          <div className="game-row-right">
+                            <span className={`game-result ${result.className}`}>{result.text}</span>
+                            <div className="game-meta">
+                              <span className="game-meta-tag">
+                                <Timer size={10} /> {formatTimeControl(game.time_control)}
+                              </span>
+                              <span className="game-meta-tag">
+                                <Calendar size={10} /> {formatGameDate(game.end_time)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <textarea
                 className="pgn-textarea"
@@ -722,7 +926,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="table-container">
+              <div className="table-container" ref={tableContainerRef}>
                 {moves.length === 0 ? (
                   <div className="empty-state">
                     <Swords size={32} strokeWidth={1.2} />

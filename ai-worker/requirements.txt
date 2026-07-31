@@ -1,3 +1,2 @@
 chess
-psycopg2-binary
 kafka-python
