@@ -285,6 +285,73 @@ body {
     0 0 80px rgba(99, 102, 241, 0.08);
 }
 
+/* ── Analysis Scanner Overlay ──────────────────────────────────────── */
+.board-scanner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 1rem;
+  overflow: hidden;
+  z-index: 10;
+  background: transparent;
+}
+
+.board-scanner::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30%;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(139, 92, 246, 0.04) 40%,
+    rgba(139, 92, 246, 0.18) 50%,
+    rgba(167, 139, 250, 0.45) 52%,
+    rgba(139, 92, 246, 0.18) 54%,
+    rgba(139, 92, 246, 0.04) 60%,
+    transparent 100%
+  );
+  animation: scanner-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes scanner-sweep {
+  0%   { top: -30%; }
+  50%  { top: 100%; }
+  100% { top: -30%; }
+}
+
+/* ── Progress Bar ───────────────────────────────────────────────────── */
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(39, 39, 42, 0.8);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid rgba(63, 63, 70, 0.5);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
+  border-radius: 9999px;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.7);
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -2px;
+  bottom: -2px;
+  width: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 9999px;
+  filter: blur(3px);
+}
+
 /* Move SAN chip */
 .move-san {
   font-family: 'Courier New', monospace;
@@ -412,6 +479,19 @@ body {
   background: rgba(202, 52, 49, 0.2);
   color: #f87171;
   border: 1px solid rgba(202, 52, 49, 0.4);
+}
+
+.badge-book {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.badge-best {
+  background: rgba(250, 204, 21, 0.18);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.25);
 }
 
 /* ─── Game Browser ─────────────────────────────────────────────────────── */

@@ -8,6 +8,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/analysis/")
@@ -30,9 +31,16 @@ public class AnalysisController {
     }
     @PostMapping("submit")
     public ResponseEntity<String> submitGame(@RequestBody String gamePgn){
-        kafkaTemplate.send("games-to-analyze",gamePgn);
+        String gameId= UUID.randomUUID().toString();
+        String jsonPayload = String.format("{\"gameId\":\"%s\", \"pgn\":\"%s\"}",
+                gameId,
+                gamePgn.replace("\n", "\\n").replace("\"", "\\\"")); // Safely escape the PGN
+
+        // 3. Send the packaged JSON to Kafka
+        kafkaTemplate.send("games-to-analyze", jsonPayload);
+
         System.out.println("Received new game to analyze");
         System.out.println(gamePgn);
-        return ResponseEntity.ok("Game received and added to the analysis queue");
+        return ResponseEntity.ok(gameId);
     }
 }

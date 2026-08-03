@@ -3,8 +3,8 @@ import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -31,6 +31,7 @@ import {
   Timer,
   Search,
   X,
+  BookOpen,
 } from 'lucide-react'
 import { Client } from '@stomp/stompjs'
 import './index.css'
@@ -40,6 +41,8 @@ import './index.css'
 function parseEval(evalString) {
   if (!evalString) return 0.0
   const str = String(evalString).trim()
+  // Book moves sit at neutral 0 on the eval chart
+  if (str === 'BOOK') return 0.0
   if (str.toLowerCase().includes('mate')) {
     if (str.toLowerCase().includes('white')) return 10.0
     if (str.toLowerCase().includes('black')) return -10.0
@@ -53,58 +56,84 @@ function parseEval(evalString) {
 }
 
 /**
- * Converts a pawn-unit evaluation to White's Win Probability (0–100).
- * Uses the Lichess formula: 50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)
+ * Converts an evaluation string to White's Win Probability (0–100).
+ *
+ * Handles three cases in strict priority order:
+ *   1. "BOOK"           → neutral 50 (opening theory, no engine eval)
+ *   2. "Mate in N for White/Black" → 100 or 0
+ *   3. Centipawn float (e.g. "+1.50") → Lichess logistic curve
+ *
+ * Formula: 50 + 50 × (2 / (1 + e^(-0.00368208 × cp)) − 1)
  */
 function calculateWinProbability(evalString) {
   if (!evalString) return 50
   const str = String(evalString).trim()
-  if (str.toLowerCase().includes('mate')) {
-    // White mate: 100% win chance for White; Black mate: 0% win chance for White
-    if (str.toLowerCase().includes('white')) return 100
-    if (str.toLowerCase().includes('black')) return 0
-    return str.startsWith('+') ? 100 : 0
+
+  // 1. Book move — treat as dead equal
+  if (str === 'BOOK') return 50
+
+  // 2. Forced mate — parse "Mate in N for White" / "Mate in N for Black"
+  const lower = str.toLowerCase()
+  if (lower.includes('mate')) {
+    if (lower.includes('white')) return 100
+    if (lower.includes('black')) return 0
+    // Legacy fallback: +/- sign prefix
+    return str.startsWith('-') ? 0 : 100
   }
-  const evalPawns = parseEval(evalString)
-  const cp = evalPawns * 100
+
+  // 3. Centipawn evaluation via Lichess logistic curve
+  const evalPawns = parseFloat(str)
+  if (isNaN(evalPawns)) return 50
+  const cp = evalPawns * 100  // pawns → centipawns
   return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1)
 }
 
 /**
- * Classifies a move using win-probability drop (Lichess standard).
- * winProbabilityDrop = how much the moving side's win chance FELL after their move.
+ * Classifies a move using Win Probability Drop (WPD) — Chess.com / Lichess standard.
+ *
+ * Priority overrides (checked before any WP math):
+ *   ► Checkmate (#)  → BEST  (avoids false "Blunder" due to eval discontinuity)
+ *   ► BOOK eval      → BOOK  (opening theory; no classification needed)
+ *
+ * WPD = how many percentage points the *moving side’s* win chance dropped:
+ *   White moved: wpDrop = prevWP − currWP
+ *   Black moved: wpDrop = currWP − prevWP  (White’s WP rising hurts Black)
+ *
+ * Thresholds:
+ *   wpDrop ≥ 20  → BLUNDER
+ *   wpDrop ≥ 10  → MISTAKE
+ *   wpDrop ≥  5  → INACCURACY
+ *   wpDrop ≤ -15 → BRILLIANT  (huge spike in moving side’s win chance)
+ *   wpDrop ≤  -5 → GREAT
+ *   else         → GOOD / BEST
  */
 function classifyMove(currentMove, previousMove) {
   if (!currentMove) return { text: 'Good', label: 'Good', badgeClass: 'badge-good' }
 
-  const currWinChance = calculateWinProbability(currentMove.evaluation)
-  const prevWinChance = previousMove
+  // ── Override 1: Checkmate — always BEST, never misclassify due to eval math ──
+  if (currentMove.moveSan && currentMove.moveSan.includes('#')) {
+    return { text: 'Best!', label: 'Best', badgeClass: 'badge-best' }
+  }
+
+  // ── Override 2: Opening book move ───────────────────────────────────
+  if (currentMove.evaluation === 'BOOK') {
+    return { text: 'Book', label: 'Book', badgeClass: 'badge-book' }
+  }
+
+  // ── Win Probability Drop calculation ───────────────────────────────
+  const currWP = calculateWinProbability(currentMove.evaluation)
+  const prevWP = previousMove
     ? calculateWinProbability(previousMove.evaluation)
-    : 50
+    : 50  // Start of game baseline
 
   const isWhite = (currentMove.player || '').toLowerCase() === 'white'
+  const wpDrop = isWhite ? prevWP - currWP : currWP - prevWP
 
-  // For White: a drop means currWinChance < prevWinChance → drop = prev - curr
-  // For Black: White's win chance going UP means Black lost ground → drop = curr - prev
-  const winProbabilityDrop = isWhite
-    ? prevWinChance - currWinChance
-    : currWinChance - prevWinChance
-
-  if (winProbabilityDrop >= 20) {
-    return { text: 'Blunder', label: 'Blunder', badgeClass: 'badge-blunder' }
-  }
-  if (winProbabilityDrop >= 10) {
-    return { text: 'Mistake', label: 'Mistake', badgeClass: 'badge-mistake' }
-  }
-  if (winProbabilityDrop >= 5) {
-    return { text: 'Inaccuracy', label: 'Inaccuracy', badgeClass: 'badge-inaccuracy' }
-  }
-  if (winProbabilityDrop <= -15) {
-    return { text: 'Brilliant!!', label: 'Brilliant', badgeClass: 'badge-brilliant' }
-  }
-  if (winProbabilityDrop <= -5) {
-    return { text: 'Great!', label: 'Great', badgeClass: 'badge-great' }
-  }
+  if (wpDrop >= 20) return { text: 'Blunder', label: 'Blunder', badgeClass: 'badge-blunder' }
+  if (wpDrop >= 10) return { text: 'Mistake', label: 'Mistake', badgeClass: 'badge-mistake' }
+  if (wpDrop >=  5) return { text: 'Inaccuracy', label: 'Inaccuracy', badgeClass: 'badge-inaccuracy' }
+  if (wpDrop <= -15) return { text: 'Brilliant!!', label: 'Brilliant', badgeClass: 'badge-brilliant' }
+  if (wpDrop <=  -5) return { text: 'Great!', label: 'Great', badgeClass: 'badge-great' }
   return { text: 'Good', label: 'Good', badgeClass: 'badge-good' }
 }
 
@@ -156,6 +185,18 @@ function CustomChartTooltip({ active, payload }) {
 
 const STARTING_FEN = new Chess().fen()
 
+// ── Analysis cycling phrases ─────────────────────────────────────────────
+const ANALYSIS_PHRASES = [
+  'Initializing Stockfish 16...',
+  'Running High-Depth Analysis...',
+  'Calculating Win Probabilities...',
+  'Identifying Brilliant Moves...',
+  'Checking Opening Theory...',
+  'Evaluating Tactical Patterns...',
+  'Scanning for Blunders & Mistakes...',
+  'Building Evaluation Graph...',
+]
+
 export default function App() {
   const [pgnInput, setPgnInput] = useState('')
   const [chessComUsername, setChessComUsername] = useState('')
@@ -169,6 +210,9 @@ export default function App() {
   const [squareStyles, setSquareStyles] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [debugError, setDebugError] = useState(null)
+  const [currentGameId, setCurrentGameId] = useState(null)
+  const [totalMoves, setTotalMoves] = useState(0)
+  const [phraseIdx, setPhraseIdx] = useState(0)
 
   const rowRefs = useRef([])
   const tableContainerRef = useRef(null)
@@ -274,15 +318,28 @@ export default function App() {
     setSelectedGameIndex(-1)
   }
 
-  // ── STOMP WebSocket (real-time) + HTTP Polling (fallback) ────────────────
+  // ── Cycling analysis phrases while scanning ──────────────────────────────
+  const isAnalyzing = currentGameId !== null && totalMoves > 0 && moves.length < totalMoves
+
   useEffect(() => {
+    if (!isAnalyzing) return
+    const interval = setInterval(() => {
+      setPhraseIdx(prev => (prev + 1) % ANALYSIS_PHRASES.length)
+    }, 1500)
+    return () => clearInterval(interval)
+  }, [isAnalyzing])
+
+  // ── STOMP WebSocket: subscribe dynamically to the private game channel ─────
+  useEffect(() => {
+    if (!currentGameId) return
+
     const client = new Client({
       brokerURL: 'ws://localhost:8080/ws',
       reconnectDelay: 5000,
       onConnect: () => {
-        console.log('✅ Connected to STOMP WebSocket')
+        console.log(`✅ Subscribed to /topic/moves/${currentGameId}`)
 
-        client.subscribe('/topic/moves', (message) => {
+        client.subscribe(`/topic/moves/${currentGameId}`, (message) => {
           try {
             const moveData = JSON.parse(message.body)
             console.log('⚡ Real-time move via WebSocket:', moveData)
@@ -314,17 +371,21 @@ export default function App() {
     return () => {
       client.deactivate()
     }
-  }, [])
+  }, [currentGameId])
 
-  // ── HTTP Polling Fallback (always runs, guarantees moves appear) ────────
+  // ── HTTP Polling Fallback (scoped to the active gameId) ────────────────
   const fetchMoves = useCallback(async () => {
+    if (!currentGameId) return
     try {
       const res = await fetch('/api/analysis/moves')
       if (!res.ok) return
       const data = await res.json()
 
-      if (data.length > 0) {
-        const sortedData = [...data].sort((a, b) => (a.id || 0) - (b.id || 0))
+      // Filter to only moves belonging to the current game session
+      const gameMoves = data.filter(m => m.gameId === currentGameId)
+
+      if (gameMoves.length > 0) {
+        const sortedData = [...gameMoves].sort((a, b) => (a.id || 0) - (b.id || 0))
         setMoves(prev => {
           // Only update if polling found more moves than we have (avoid overwriting WS data)
           if (sortedData.length > prev.length) return sortedData
@@ -335,13 +396,20 @@ export default function App() {
     } catch {
       // Silently ignore — WebSocket is the primary channel
     }
-  }, [])
+  }, [currentGameId])
 
   useEffect(() => {
     fetchMoves()
     const interval = setInterval(fetchMoves, 3000)
     return () => clearInterval(interval)
   }, [fetchMoves])
+
+  // Detect analysis completion: when streamed moves reach the expected total
+  useEffect(() => {
+    if (totalMoves > 0 && moves.length >= totalMoves) {
+      setStatus('Analysis Complete')
+    }
+  }, [moves.length, totalMoves])
 
   // Auto-initialize currentMoveIndex only on first load or after a clear.
   // If the user has already manually navigated, never override their position.
@@ -405,11 +473,13 @@ export default function App() {
 
       const highlightColors = {
         'Brilliant!!': 'rgba(27, 193, 161, 0.75)',
-        'Great!': 'rgba(92, 139, 176, 0.75)',
-        Blunder: 'rgba(202, 52, 49, 0.75)',
-        Mistake: 'rgba(229, 143, 42, 0.75)',
-        Inaccuracy: 'rgba(240, 193, 92, 0.75)',
-        Good: 'rgba(129, 182, 76, 0.65)',
+        'Great!':      'rgba(92, 139, 176, 0.75)',
+        Blunder:       'rgba(202, 52, 49, 0.75)',
+        Mistake:       'rgba(229, 143, 42, 0.75)',
+        Inaccuracy:    'rgba(240, 193, 92, 0.75)',
+        Good:          'rgba(129, 182, 76, 0.65)',
+        Book:          'rgba(99, 102, 241, 0.65)',   // indigo for book moves
+        'Best!':       'rgba(250, 204, 21, 0.75)',   // gold for checkmate
       }
 
       const toColor = highlightColors[classification.text] || 'rgba(129, 182, 76, 0.65)'
@@ -476,20 +546,31 @@ export default function App() {
     setIsSubmitting(true)
     setStatus('Analyzing Engine Data...')
     setDebugError(null)
-    // Reset navigation state for the new game
+    setPhraseIdx(0)
+    // Immediately clear the board and moves for the new game
+    setMoves([])
+    setCurrentPosition(STARTING_FEN)
     setCurrentMoveIndex(-1)
     userHasNavigated.current = false
-    
-    try {
-      await fetch('/api/analysis/clear', { method: 'DELETE' })
-      setMoves([])
-      setCurrentPosition(STARTING_FEN)
 
-      await fetch('/api/analysis/submit', {
+    // Pre-calculate total moves so we can show progress
+    try {
+      const tempGame = new Chess()
+      tempGame.loadPgn(pgnInput)
+      setTotalMoves(tempGame.history().length)
+    } catch {
+      setTotalMoves(0)
+    }
+
+    try {
+      const res = await fetch('/api/analysis/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: pgnInput,
       })
+      const gameId = await res.text()
+      console.log(`🆔 New game session started: ${gameId}`)
+      setCurrentGameId(gameId)
       setStatus('Game submitted!')
     } catch {
       setStatus('Error connecting to server')
@@ -599,10 +680,10 @@ export default function App() {
         >
 
           {/* ══ LEFT COLUMN: Board & Evaluation Chart ══ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="left-column" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
             {/* Board card */}
-            <div className="glass-card" style={{ padding: '1.25rem' }}>
+            <div className="glass-card board-card" style={{ padding: '1.25rem' }}>
 
               {/* ── Coach Banner (Replaces raw FEN string) ── */}
               <div style={{
@@ -630,37 +711,73 @@ export default function App() {
                   </p>
                   {currentMoveIndex < 0 || !activeMove ? (
                     <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e4e4e7', margin: 0 }}>
-                      Starting position. Use the controls or click moves to navigate!
+                      {isAnalyzing ? ANALYSIS_PHRASES[phraseIdx] : 'Starting position. Use the controls or click moves to navigate!'}
                     </p>
                   ) : (
                     <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#e4e4e7', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <span>{activeMove.player}</span> played <span className="move-san">{activeMove.moveSan}</span>.
-                      <span>This is a</span>
-                      <span className={`move-badge ${activeClassification.badgeClass}`} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}>
-                        {activeClassification.text}
-                      </span>
+                      {activeClassification.label === 'Book' ? (
+                        <span className={`move-badge ${activeClassification.badgeClass}`} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <BookOpen size={11} /> {activeClassification.text}
+                        </span>
+                      ) : (
+                        <>
+                          <span>This is a</span>
+                          <span className={`move-badge ${activeClassification.badgeClass}`} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}>
+                            {activeClassification.text}
+                          </span>
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
               </div>
 
               {/* ── Chessboard Component with Square Highlighting ── */}
-              <div className="board-wrapper">
-                <Chessboard
-                  key={currentPosition}
-                  options={{
-                    id: 'MainBoard',
-                    position: currentPosition,
-                    allowDragging: false,
-                    animationDurationInMs: 300,
-                    darkSquareStyle: { backgroundColor: '#4c1d95' },
-                    lightSquareStyle: { backgroundColor: '#ede9fe' },
-                    allowDrawingArrows: false,
-                    showNotation: true,
-                    squareStyles: squareStyles,
-                  }}
-                />
+              {/* Board + Scanner share a relative container */}
+              <div style={{ position: 'relative' }}>
+                <div className="board-wrapper">
+                  <Chessboard
+                    key={currentPosition}
+                    options={{
+                      id: 'MainBoard',
+                      position: currentPosition,
+                      allowDragging: false,
+                      animationDurationInMs: 300,
+                      darkSquareStyle: { backgroundColor: '#4c1d95' },
+                      lightSquareStyle: { backgroundColor: '#ede9fe' },
+                      allowDrawingArrows: false,
+                      showNotation: true,
+                      squareStyles: squareStyles,
+                    }}
+                  />
+                </div>
+                {/* Scanner is a sibling — not clipped by board-wrapper overflow:hidden */}
+                {isAnalyzing && (
+                  <div className="board-scanner" />
+                )}
               </div>
+
+              {/* ── Analysis Progress Bar ── */}
+              {isAnalyzing && totalMoves > 0 && (
+                <div style={{ marginTop: '0.875rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#a78bfa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Loader2 size={11} className="animate-spin" />
+                      {ANALYSIS_PHRASES[phraseIdx]}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#52525b', fontFamily: 'monospace' }}>
+                      {moves.length} / {totalMoves}
+                    </span>
+                  </div>
+                  <div className="progress-track">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${Math.min(100, (moves.length / totalMoves) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* ── Move Navigation Controls ── */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
@@ -707,7 +824,7 @@ export default function App() {
             </div>
 
             {/* Evaluation Chart Card */}
-            <div className="glass-card" style={{ padding: '1.25rem' }}>
+            <div className="glass-card chart-card" style={{ padding: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <p className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
                   <TrendingUp size={11} /> Evaluation Chart
@@ -723,7 +840,7 @@ export default function App() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={150}>
-                  <AreaChart
+                  <LineChart
                     data={chartData}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     onClick={(e) => {
@@ -749,12 +866,12 @@ export default function App() {
                     {currentMoveIndex >= 0 && moves[currentMoveIndex] && (
                       <ReferenceLine x={moves[currentMoveIndex].moveSan} stroke="#8b5cf6" strokeWidth={2} />
                     )}
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="evaluation"
                       stroke="url(#splitStroke)"
-                      fill="url(#splitColor)"
                       strokeWidth={2}
+                      dot={false}
                       activeDot={{
                         r: 6,
                         fill: '#8b5cf6',
@@ -762,13 +879,13 @@ export default function App() {
                         strokeWidth: 2,
                       }}
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               )}
             </div>
 
             {/* Status card */}
-            <div className="glass-card" style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="glass-card status-card" style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.75rem', color: '#52525b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Engine Status
               </span>
@@ -777,7 +894,7 @@ export default function App() {
 
             {/* Debug/Error alert */}
             {debugError && (
-              <div className="glass-card" style={{ padding: '1rem', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.05)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+              <div className="glass-card debug-card" style={{ padding: '1rem', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.05)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: '0.1rem' }} />
                 <div>
                   <p style={{ fontSize: '0.78rem', fontWeight: 600, color: '#f87171', marginBottom: '0.25rem' }}>Board Sync Issue</p>
@@ -788,10 +905,10 @@ export default function App() {
           </div>
 
           {/* ══ RIGHT COLUMN: Controls + Results ══ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
             {/* Input card */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="glass-card controls-card" style={{ padding: '1.5rem' }}>
               <p className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
                 <Cpu size={11} /> PGN Input
               </p>
@@ -910,7 +1027,7 @@ export default function App() {
             </div>
 
             {/* Results card */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="glass-card table-card" style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
                 <p className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: 0 }}>
                   <Activity size={11} /> Analysis Results
@@ -969,7 +1086,8 @@ export default function App() {
                               <span className="move-san">{move.moveSan}</span>
                             </td>
                             <td>
-                              <span className={`move-badge ${classification.badgeClass}`}>
+                              <span className={`move-badge ${classification.badgeClass}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                {classification.label === 'Book' && <BookOpen size={10} />}
                                 {classification.text}
                               </span>
                             </td>
@@ -983,20 +1101,52 @@ export default function App() {
             </div>
 
             {/* Footer tip */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#3f3f46', fontSize: '0.73rem', paddingLeft: '0.25rem' }}>
+            <div className="footer-tip" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#3f3f46', fontSize: '0.73rem', paddingLeft: '0.25rem' }}>
               <ChevronRight size={12} />
               <span>Click any move or chart point to jump the board. Run <code style={{ color: '#6366f1', fontFamily: 'monospace' }}>python main.py</code> in ai-worker to start engine.</span>
             </div>
           </div>
         </div>
+
+        {/* ── Footer ── */}
+        <footer style={{
+          marginTop: '3rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid rgba(63, 63, 70, 0.5)',
+          textAlign: 'center',
+          position: 'relative',
+          zIndex: 1
+        }}>
+          <p style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 500, margin: '0 0 0.5rem 0' }}>
+            Built by <span style={{ color: '#f4f4f5', fontWeight: 700 }}>Muhammad Yahya Siddiqui</span>
+          </p>
+          <p style={{ fontSize: '0.75rem', color: '#71717a', margin: '0 0 0.5rem 0' }}>
+            Backend AI Engineer
+          </p>
+          <p style={{ fontSize: '0.7rem', color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Real-Time Microservices Chess Architecture
+          </p>
+        </footer>
       </div>
 
       {/* Responsive grid style */}
       <style>{`
         @media (max-width: 860px) {
           .responsive-grid {
-            grid-template-columns: 1fr !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1.25rem !important;
           }
+          .left-column, .right-column {
+            display: contents !important;
+          }
+          .controls-card { order: 1; }
+          .board-card { order: 2; }
+          .chart-card { order: 3; }
+          .table-card { order: 4; }
+          .status-card { order: 5; }
+          .debug-card { order: 6; }
+          .footer-tip { order: 7; }
         }
         .animate-spin {
           animation: spin 1s linear infinite;

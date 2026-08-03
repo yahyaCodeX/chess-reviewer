@@ -1,2 +1,3 @@
 chess
 kafka-python
+requests

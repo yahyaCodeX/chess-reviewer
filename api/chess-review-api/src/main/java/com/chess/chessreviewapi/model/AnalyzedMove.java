@@ -9,6 +9,7 @@ public class AnalyzedMove {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String gameId;
     @Column(name = "move_number")
     private Integer moveNumber;
 
@@ -22,6 +23,9 @@ public class AnalyzedMove {
     private String evaluation;
 
     // --- Getters and Setters (Spring Boot needs these!) ---
+
+    public String getGameId(){return gameId;}
+    public void setGameId(String gameId){this.gameId=gameId;}
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

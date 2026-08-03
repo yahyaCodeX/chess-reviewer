@@ -26,8 +26,9 @@ public class AnalysisListener {
         try{
             AnalyzedMove move=objectMapper.readValue(moveJson,AnalyzedMove.class);
             AnalyzedMove savedMove=repository.save(move);
-            System.out.println("Broadcasting Move "+ savedMove.getMoveNumber()+" to React");
-            messagingTemplate.convertAndSend("/topic/moves",savedMove);
+            String gameId = savedMove.getGameId();
+            System.out.println("Broadcasting Move "+ savedMove.getMoveNumber()+" to game channel /topic/moves/" + gameId);
+            messagingTemplate.convertAndSend("/topic/moves/" + gameId, savedMove);
         }catch (JsonProcessingException e){
             System.out.println("Error Passing JSON from Kafka "+e.getMessage());
         }
