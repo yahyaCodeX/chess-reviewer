@@ -197,6 +197,9 @@ const ANALYSIS_PHRASES = [
   'Building Evaluation Graph...',
 ]
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+
 export default function App() {
   const [pgnInput, setPgnInput] = useState('')
   const [chessComUsername, setChessComUsername] = useState('')
@@ -334,7 +337,7 @@ export default function App() {
     if (!currentGameId) return
 
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws',
+      brokerURL: wsUrl,
       reconnectDelay: 5000,
       onConnect: () => {
         console.log(`✅ Subscribed to /topic/moves/${currentGameId}`)
@@ -377,7 +380,7 @@ export default function App() {
   const fetchMoves = useCallback(async () => {
     if (!currentGameId) return
     try {
-      const res = await fetch('/api/analysis/moves')
+      const res = await fetch(`${apiUrl}/api/analysis/moves`)
       if (!res.ok) return
       const data = await res.json()
 
@@ -563,7 +566,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('/api/analysis/submit', {
+      const res = await fetch(`${apiUrl}/api/analysis/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: pgnInput,

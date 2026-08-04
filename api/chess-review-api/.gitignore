@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Ignore Aiven Kafka Certificates
+**/src/main/resources/certs/

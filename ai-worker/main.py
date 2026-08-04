@@ -14,13 +14,32 @@ from kafka import KafkaConsumer, KafkaProducer
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Define the paths relative to this script
-ENGINE_PATH = os.path.join("engine", "stockfish.exe")
+# Detect the Operating System automatically!
+if sys.platform == "win32":
+    ENGINE_PATH = os.path.join("engine", "stockfish.exe") # Use this on your laptop
+else:
+    ENGINE_PATH = os.path.join("engine", "stockfish-linux") # Use this on Render
+    os.chmod(ENGINE_PATH, 0o755) # Give Linux permission to execute the file
 
 # Lichess Masters Opening Explorer — free, no API key required
 LICHESS_EXPLORER_URL = "https://explorer.lichess.ovh/masters"
 # Check book moves for the first N plies (30 plies = 15 full moves)
 BOOK_PLY_LIMIT = 30
+
+KAFKA_URL = os.getenv("KAFKA_URL", "localhost:9092")
+KAFKA_SECURITY_PROTOCOL = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
+
+kafka_connection_args = {
+    "bootstrap_servers": [KAFKA_URL],
+    "security_protocol": KAFKA_SECURITY_PROTOCOL
+}
+
+if KAFKA_SECURITY_PROTOCOL == "SSL":
+    kafka_connection_args.update({
+        "ssl_cafile": "../api/src/main/resources/certs/ca.pem",
+        "ssl_certfile": "../api/src/main/resources/certs/service.cert",
+        "ssl_keyfile": "../api/src/main/resources/certs/service.key"
+    })
 
 # Setup robust session for Lichess API to prevent connection drops/timeouts
 lichess_session = requests.Session()
@@ -55,7 +74,7 @@ def setup_kafka_producer():
     """Setup Kafka Producer to publish analyzed moves."""
     print("📤 Connecting Kafka Producer...")
     producer = KafkaProducer(
-        bootstrap_servers=['localhost:9092'],
+        **kafka_connection_args,
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
     print("✅ Kafka Producer ready!")
@@ -146,7 +165,7 @@ def start_worker():
     print("📬 Connecting to Kafka post office...")
     consumer = KafkaConsumer(
         'games-to-analyze',
-        bootstrap_servers=['localhost:9092'],
+        **kafka_connection_args,
         auto_offset_reset='latest',          # Only pick up NEW messages, ignore old backlog
         group_id='chess-worker-group',        # Kafka remembers progress for this group
         enable_auto_commit=True,
