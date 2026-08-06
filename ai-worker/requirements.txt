@@ -1,3 +1,4 @@
 chess
-kafka-python
+confluent-kafka
 requests
+python-dotenv

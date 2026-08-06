@@ -9,7 +9,10 @@ import time
 import concurrent.futures
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from kafka import KafkaConsumer, KafkaProducer
+from confluent_kafka import Consumer, Producer
+from dotenv import load_dotenv
+
+load_dotenv()
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -30,15 +33,16 @@ KAFKA_URL = os.getenv("KAFKA_URL", "localhost:9092")
 KAFKA_SECURITY_PROTOCOL = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
 
 kafka_connection_args = {
-    "bootstrap_servers": [KAFKA_URL],
-    "security_protocol": KAFKA_SECURITY_PROTOCOL
+    "bootstrap.servers": KAFKA_URL,
+    "security.protocol": KAFKA_SECURITY_PROTOCOL
 }
 
 if KAFKA_SECURITY_PROTOCOL == "SSL":
     kafka_connection_args.update({
-        "ssl_cafile": "../api/src/main/resources/certs/ca.pem",
-        "ssl_certfile": "../api/src/main/resources/certs/service.cert",
-        "ssl_keyfile": "../api/src/main/resources/certs/service.key"
+        "ssl.ca.location": "../api/chess-review-api/src/main/resources/certs/ca.pem",
+        "ssl.certificate.location": "../api/chess-review-api/src/main/resources/certs/service.cert",
+        "ssl.key.location": "../api/chess-review-api/src/main/resources/certs/service.key",
+        "ssl.endpoint.identification.algorithm": "none"
     })
 
 # Setup robust session for Lichess API to prevent connection drops/timeouts
@@ -73,10 +77,7 @@ def is_book_move(fen: str, move_uci: str) -> bool:
 def setup_kafka_producer():
     """Setup Kafka Producer to publish analyzed moves."""
     print("📤 Connecting Kafka Producer...")
-    producer = KafkaProducer(
-        **kafka_connection_args,
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
+    producer = Producer(kafka_connection_args)
     print("✅ Kafka Producer ready!")
     return producer
 
@@ -144,7 +145,8 @@ def analyze_pgn_string(pgn_string, game_id, producer):
             }
 
             # Publish to Kafka topic 'analyzed-moves'
-            producer.send('analyzed-moves', payload)
+            producer.produce('analyzed-moves', json.dumps(payload).encode('utf-8'))
+            producer.poll(0)
 
         producer.flush()
         print(f"📡 [Game {game_id}] Analysis complete and published to Kafka topic 'analyzed-moves'!")
@@ -163,21 +165,28 @@ def start_worker():
 
     # 2. Setup Kafka Consumer
     print("📬 Connecting to Kafka post office...")
-    consumer = KafkaConsumer(
-        'games-to-analyze',
-        **kafka_connection_args,
-        auto_offset_reset='latest',          # Only pick up NEW messages, ignore old backlog
-        group_id='chess-worker-group',        # Kafka remembers progress for this group
-        enable_auto_commit=True,
-        value_deserializer=lambda x: x.decode('utf-8')
-    )
+    consumer_args = kafka_connection_args.copy()
+    consumer_args.update({
+        'group.id': 'chess-worker-group',
+        'auto.offset.reset': 'latest',
+        'enable.auto.commit': True
+    })
+    consumer = Consumer(consumer_args)
+    consumer.subscribe(['games-to-analyze'])
 
     print("🎧 Worker is now listening for games. Waiting for Spring Boot to send something...")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         try:
-            for message in consumer:
-                raw_value = message.value
+            while True:
+                message = consumer.poll(1.0)
+                if message is None:
+                    continue
+                if message.error():
+                    print(f"Consumer error: {message.error()}")
+                    continue
+
+                raw_value = message.value().decode('utf-8')
                 print("\n🔔 BING! New message received from Spring Boot!")
                 try:
                     parsed = json.loads(raw_value)

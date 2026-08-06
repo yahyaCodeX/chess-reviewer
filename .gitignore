@@ -25,4 +25,4 @@ Thumbs.db
 
 # Large binaries - download separately from https://stockfishchess.org/download/
 ai-worker/engine/stockfish.exe
-ai-worker/engine/stockfish-linux
+
