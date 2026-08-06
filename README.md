@@ -6,14 +6,6 @@
 
 ---
 
-## 🎬 Demo
-
-> 📌 **Paste your GitHub-uploaded video URL below this line and delete this line**
-
-https://github.com/user-attachments/assets/YOUR-VIDEO-URL-HERE
-
----
-
 ## 📑 Table of Contents
 
 - [System Architecture](#-system-architecture)
@@ -277,41 +269,7 @@ chess-reviewer/
 
 ---
 
-## 🎬 How to Add Your Demo Video to GitHub
 
-Since this project isn't hosted live, adding a demo video to this README is the **single most impactful** thing you can do for your portfolio. Here's exactly how:
-
-### Option A — GitHub Issue Upload (Easiest ✅ Recommended)
-
-1. Go to your repository on GitHub.
-2. Click **Issues** → **New Issue**.
-3. In the text box, **drag and drop your `.mp4` or `.gif` file**. GitHub will upload it and give you a URL like:
-   ```
-   https://github.com/user-attachments/assets/xxxxxx.mp4
-   ```
-4. **Copy that URL** — you don't need to submit the issue.
-5. Replace the placeholder in this README with:
-   ```markdown
-   https://github.com/user-attachments/assets/YOUR-VIDEO-URL-HERE
-   ```
-   GitHub natively renders `.mp4` links as an embedded video player in the README.
-
-### Option B — Convert to GIF + Commit
-
-If you want an inline animated preview (no click required):
-1. Convert your video to GIF using **ezgif.com** or **ffmpeg**:
-   ```bash
-   ffmpeg -i demo.mp4 -vf "fps=15,scale=900:-1" -loop 0 demo.gif
-   ```
-2. Commit the `.gif` to the repo (e.g., `assets/demo.gif`).
-3. Embed it in the README:
-   ```markdown
-   ![Chess Reviewer Demo](./assets/demo.gif)
-   ```
-
-> **💡 Pro Tip**: Keep GIFs under 10MB for GitHub rendering. Use `scale=800:-1` and `fps=12` if it's too large.
-
----
 
 ## 📝 License
 
