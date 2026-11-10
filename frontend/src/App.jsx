@@ -48,7 +48,7 @@ import {
 } from './lib/review'
 import { ERROR_CLASSES, explainMove, fenAfter } from './lib/explain'
 import { buildAnnotatedPgn, downloadText, pgnFilename } from './lib/pgnExport'
-import { playSound, soundForSan } from './lib/sounds'
+import { cueForClass, playSound, soundForSan } from './lib/sounds'
 import { clearReviewFromUrl, reviewFromLocation, reviewUrl, shareLink, showReviewInUrl } from './lib/share'
 import './index.css'
 
@@ -376,9 +376,13 @@ export default function App() {
     const prev = lastSound.current
     lastSound.current = { idx: viewIdx, at: Date.now() }
     if (!soundOn || phase === 'warmup' || phase === 'idle' || viewIdx < 0) return
-    if (viewIdx !== prev.idx + 1 || Date.now() - prev.at < 150) return // only single steps forward
+    // Any arrival on a new move (step, click, jump) — but not fast live catch-up
+    if (viewIdx === prev.idx || Date.now() - prev.at < 150) return
     playSound(soundForSan(plies[viewIdx]?.san))
-  }, [viewIdx, soundOn, phase, plies])
+    // Then the review cue (brilliant chime, blunder thud…), like chess.com
+    const cue = cueForClass(classes[viewIdx])
+    if (cue) playSound(cue, 0.12)
+  }, [viewIdx, soundOn, phase, plies, classes])
   useEffect(() => {
     if (soundOn && preview === 'best' && explanation) playSound(soundForSan(explanation.bestSan))
   }, [preview, soundOn, explanation])
