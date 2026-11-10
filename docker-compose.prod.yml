@@ -1,0 +1,50 @@
+# Single-VM production stack (e.g. an Azure B2s VM):
+#   web     → Caddy: HTTPS + static React build + reverse proxy to the gateway
+#   gateway → FastAPI REST + STOMP WebSocket + Kafka consumer
+#   worker  → Python + Stockfish
+# Kafka and PostgreSQL stay on Aiven (managed).
+#
+#   git lfs pull                       # fetch the Stockfish binary
+#   SITE_DOMAIN=<dns-label>.<region>.cloudapp.azure.com \
+#     docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - gateway
+
+  gateway:
+    build: ./FastApi-Backend
+    restart: unless-stopped
+    env_file: ./FastApi-Backend/.env
+    environment:
+      CORS_ORIGINS: https://${SITE_DOMAIN:-localhost}
+    volumes:
+      - ./FastApi-Backend/certs:/app/certs:ro
+    mem_limit: 384m
+
+  worker:
+    build: ./ai-worker
+    restart: unless-stopped
+    env_file: ./FastApi-Backend/.env  # same Kafka settings as the gateway
+    environment:
+      ENGINE_DEPTH: ${ENGINE_DEPTH:-16}
+      ENGINE_THREADS: ${ENGINE_THREADS:-1}
+      MAX_PARALLEL_GAMES: ${MAX_PARALLEL_GAMES:-2}
+    volumes:
+      - ./FastApi-Backend/certs:/app/certs:ro
+    mem_limit: 768m
+
+volumes:
+  caddy_data:
+  caddy_config:
