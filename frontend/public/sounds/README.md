@@ -30,9 +30,9 @@ two recordings layered together (noted below).
 | `great.wav` | Great (!), correct Retry answer | [pling sound effect ui interface ding](https://freesound.org/s/627794/) by Leonardmedia.nl |
 | `excellent.wav` | Excellent | [bell ding 1](https://freesound.org/s/611113/) by 5ro4 |
 | `book.wav` | Book | [Page Turn 01](https://freesound.org/s/397548/) by LilMati |
-| `inaccuracy.wav` | Inaccuracy (?!) | two soft taps from JJTaynos (above) |
+| `inaccuracy.wav` | Inaccuracy (?!) | one soft tap from JJTaynos (above) |
 | `mistake.wav` | Mistake (?), wrong Retry answer | [Wooden Thud (Mono)](https://freesound.org/s/449955/) by Breviceps |
-| `blunder.wav` | Blunder (??) | Wooden Thud + [Buzzer sounds (Wrong answer)](https://freesound.org/s/493163/) by Breviceps |
+| `blunder.wav` | Blunder (??) | Wooden Thud by Breviceps (above), slowed down for a deeper, heavier thud |
 | `miss.wav` | Miss | [Whoosh](https://freesound.org/s/60013/) by qubodup |
 
 CC0 needs no attribution; the credits are here as thanks.
