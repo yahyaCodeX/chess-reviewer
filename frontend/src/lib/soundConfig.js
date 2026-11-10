@@ -18,6 +18,12 @@ export const CHESS_SOUNDS = {
   premove: '/sounds/premove.wav', // reserved (the reviewer has no live play)
 }
 
+/**
+ * Rating sounds (brilliant chime, blunder thud…) after the board sound.
+ * Off: every move just plays its board sound, the same as a good move.
+ */
+export const PLAY_REVIEW_SOUNDS = false
+
 /** Review sounds — played right after the board sound, by move rating. */
 export const REVIEW_SOUNDS = {
   brilliant: '/sounds/brilliant.wav',
@@ -31,10 +37,10 @@ export const REVIEW_SOUNDS = {
   // best, good and forced have no review sound
 }
 
-/** Retry mode results reuse review sounds. */
+/** Retry mode: the right answer plays like a normal move, a wrong one like an illegal move. */
 export const RETRY_SOUNDS = {
-  correct: REVIEW_SOUNDS.great,
-  wrong: REVIEW_SOUNDS.mistake,
+  correct: CHESS_SOUNDS.move,
+  wrong: CHESS_SOUNDS.illegal,
 }
 
 /** Delay between the board sound and the review sound (ms). */

@@ -3,7 +3,7 @@
 // Each URL gets a small pool of preloaded <audio> elements, so a sound can
 // start instantly and overlap itself when moves are stepped through quickly.
 
-import { CHESS_SOUNDS, RETRY_SOUNDS, REVIEW_SOUNDS, REVIEW_SOUND_DELAY_MS } from './soundConfig.js'
+import { CHESS_SOUNDS, PLAY_REVIEW_SOUNDS, RETRY_SOUNDS, REVIEW_SOUNDS, REVIEW_SOUND_DELAY_MS } from './soundConfig.js'
 
 const POOL_SIZE = 3
 const VOLUME = 0.8
@@ -44,7 +44,8 @@ export function playUrl(url) {
 
 /** Start loading every configured sound so the first plays are instant. */
 export function preloadSounds() {
-  for (const url of [...Object.values(CHESS_SOUNDS), ...Object.values(REVIEW_SOUNDS)]) {
+  const review = PLAY_REVIEW_SOUNDS ? Object.values(REVIEW_SOUNDS) : []
+  for (const url of [...Object.values(CHESS_SOUNDS), ...review]) {
     if (url && !broken.has(url)) pool(url)
   }
 }
@@ -62,7 +63,7 @@ export function boardSoundFor(san = '') {
 /** Board sound for a move, then its review sound (if the rating has one). */
 export function playMoveSounds(san, cls) {
   playUrl(CHESS_SOUNDS[boardSoundFor(san)])
-  const review = cls && REVIEW_SOUNDS[cls]
+  const review = PLAY_REVIEW_SOUNDS && cls && REVIEW_SOUNDS[cls]
   if (review) setTimeout(() => playUrl(review), REVIEW_SOUND_DELAY_MS)
 }
 
