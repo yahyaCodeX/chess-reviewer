@@ -1,36 +1,38 @@
-# Move sounds
+# Sounds
 
-Drop recorded sounds here to replace the built-in synthesised ones.
-Any file that is missing falls back to the synthesised sound.
+The app plays audio files only. Every sound is listed in
+[`src/lib/soundConfig.js`](../../src/lib/soundConfig.js), and by default each
+one points to a file in this folder. Add files with these names; any that are
+missing are simply skipped.
 
-| File name | Played when |
+**Board sounds**, for every move you land on:
+
+| File | When |
 |---|---|
-| `move.mp3` | a normal move |
-| `capture.mp3` | a capture |
+| `move.mp3` | normal move |
+| `capture.mp3` | capture |
+| `check.mp3` | check |
 | `castle.mp3` | castling |
-| `check.mp3` | a check |
-| `end.mp3` | checkmate |
-| `correct.mp3` | Retry: you found the best move |
-| `wrong.mp3` | Retry: wrong move |
+| `promote.mp3` | promotion |
+| `game-end.mp3` | checkmate |
+| `illegal.mp3` | illegal move in Retry mode |
+| `premove.mp3` | reserved (not used yet) |
 
-**Review cues** play right after the piece sound when you land on a rated move:
+**Review sounds**, played right after the board sound:
 
-| File name | Move rating |
+| File | Move rating |
 |---|---|
 | `brilliant.mp3` | Brilliant (!!) |
-| `great-move.mp3` | Great (!) |
-| `excellent.mp3` | Excellent (falls back to `great-move` if missing) |
+| `great.mp3` | Great (!), and a correct answer in Retry |
+| `excellent.mp3` | Excellent |
 | `book.mp3` | Book |
 | `inaccuracy.mp3` | Inaccuracy (?!) |
-| `mistake.mp3` | Mistake (?) |
-| `blunder.mp3` | Blunder (??) |
+| `mistake.mp3` | Mistake (?), and a wrong answer in Retry |
 | `miss.mp3` | Miss |
+| `blunder.mp3` | Blunder (??) |
 
-Best, Good and Forced moves get no cue, only the piece sound.
+To use a different name, format or an absolute URL, edit `soundConfig.js`.
+Keep files short (under about 0.5 s) with no silence at the start.
 
-`.ogg` and `.wav` work too (e.g. `move.ogg`). Keep each file short (under 0.5 s)
-and quiet at the start, so it plays exactly when the piece lands.
-
-**Licensing:** only use sounds you have the right to publish, such as CC0 files from
-freesound.org (filter by "Creative Commons 0") or a pack you bought. Don't copy
-chess.com's or Lichess's standard sounds; they aren't licensed for reuse.
+**Licensing:** this site is public, so only use sounds you have the right to
+publish, such as CC0 files from freesound.org or a pack you bought.

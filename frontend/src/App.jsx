@@ -48,7 +48,7 @@ import {
 } from './lib/review'
 import { ERROR_CLASSES, explainMove, fenAfter } from './lib/explain'
 import { buildAnnotatedPgn, downloadText, pgnFilename } from './lib/pgnExport'
-import { cueForClass, playSound, soundForSan } from './lib/sounds'
+import { boardSoundFor, playBoardSound, playMoveSounds, playRetrySound, preloadSounds } from './lib/sounds'
 import { clearReviewFromUrl, reviewFromLocation, reviewUrl, shareLink, showReviewInUrl } from './lib/share'
 import './index.css'
 
@@ -332,16 +332,17 @@ export default function App() {
     try {
       move = board.move({ from, to, promotion: 'q' })
     } catch {
+      if (soundOn) playBoardSound('illegal')
       return false // illegal — the piece snaps back
     }
     const best = explanation.bestUci
     const isBest = best.slice(0, 2) === from && best.slice(2, 4) === to && (!best[4] || best[4] === (move.promotion ?? 'q'))
     if (isBest) {
-      if (soundOn) playSound('correct')
+      if (soundOn) playRetrySound('correct')
       setRetry(r => ({ ...r, status: 'solved', attemptFen: null }))
       return true
     }
-    if (soundOn) playSound('wrong')
+    if (soundOn) playRetrySound('wrong')
     const idx = activeRetry.idx
     setRetry(r => ({
       ...r,
@@ -378,14 +379,16 @@ export default function App() {
     if (!soundOn || phase === 'warmup' || phase === 'idle' || viewIdx < 0) return
     // Any arrival on a new move (step, click, jump) — but not fast live catch-up
     if (viewIdx === prev.idx || Date.now() - prev.at < 150) return
-    playSound(soundForSan(plies[viewIdx]?.san))
-    // Then the review cue (brilliant chime, blunder thud…), like chess.com
-    const cue = cueForClass(classes[viewIdx])
-    if (cue) playSound(cue, 0.12)
+    // Board sound, then the review sound for the move's rating
+    playMoveSounds(plies[viewIdx]?.san, classes[viewIdx])
   }, [viewIdx, soundOn, phase, plies, classes])
   useEffect(() => {
-    if (soundOn && preview === 'best' && explanation) playSound(soundForSan(explanation.bestSan))
+    if (soundOn && preview === 'best' && explanation) playBoardSound(boardSoundFor(explanation.bestSan))
   }, [preview, soundOn, explanation])
+  // Load the audio files as soon as a game is open, so the first move plays instantly
+  useEffect(() => {
+    if (soundOn && game) preloadSounds()
+  }, [soundOn, game])
 
   // ── Keyboard ─────────────────────────────────────────────────────────────
   useEffect(() => {
