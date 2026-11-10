@@ -8,26 +8,26 @@
 
 /** Board sounds — played for every move you land on. */
 export const CHESS_SOUNDS = {
-  move: '/sounds/move.mp3',
-  capture: '/sounds/capture.mp3',
-  check: '/sounds/check.mp3',
-  castle: '/sounds/castle.mp3',
-  promote: '/sounds/promote.mp3',
-  gameEnd: '/sounds/game-end.mp3',
-  illegal: '/sounds/illegal.mp3', // Retry mode: an illegal move
-  premove: '/sounds/premove.mp3', // reserved (the reviewer has no live play)
+  move: '/sounds/move.wav',
+  capture: '/sounds/capture.wav',
+  check: '/sounds/check.wav',
+  castle: '/sounds/castle.wav',
+  promote: '/sounds/promote.wav',
+  gameEnd: '/sounds/game-end.wav',
+  illegal: '/sounds/illegal.wav', // Retry mode: an illegal move
+  premove: '/sounds/premove.wav', // reserved (the reviewer has no live play)
 }
 
 /** Review sounds — played right after the board sound, by move rating. */
 export const REVIEW_SOUNDS = {
-  brilliant: '/sounds/brilliant.mp3',
-  great: '/sounds/great.mp3',
-  excellent: '/sounds/excellent.mp3',
-  book: '/sounds/book.mp3',
-  inaccuracy: '/sounds/inaccuracy.mp3',
-  mistake: '/sounds/mistake.mp3',
-  miss: '/sounds/miss.mp3',
-  blunder: '/sounds/blunder.mp3',
+  brilliant: '/sounds/brilliant.wav',
+  great: '/sounds/great.wav',
+  excellent: '/sounds/excellent.wav',
+  book: '/sounds/book.wav',
+  inaccuracy: '/sounds/inaccuracy.wav',
+  mistake: '/sounds/mistake.wav',
+  miss: '/sounds/miss.wav',
+  blunder: '/sounds/blunder.wav',
   // best, good and forced have no review sound
 }
 
