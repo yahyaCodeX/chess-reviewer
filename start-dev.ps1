@@ -23,6 +23,7 @@ if ($Local) {
 $env:DATABASE_URL='postgresql+psycopg2://chess_user:password123@localhost:5432/chess_data'
 $env:KAFKA_URL='localhost:9092'
 $env:KAFKA_SECURITY_PROTOCOL='PLAINTEXT'
+$env:RATE_LIMIT_GAMES='100'
 '@
 }
 
