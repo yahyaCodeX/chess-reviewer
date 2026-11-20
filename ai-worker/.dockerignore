@@ -1,0 +1,6 @@
+.env
+engine/stockfish.exe
+__pycache__/
+*.pyc
+*.pgn
+run.ps1

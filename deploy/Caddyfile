@@ -1,0 +1,18 @@
+# HTTPS front door for the API. Caddy gets and renews a free Let's Encrypt
+# certificate for API_DOMAIN automatically (ports 80 and 443 must be open).
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	@api path /api/* /ws /ws/* /health
+	handle @api {
+		reverse_proxy gateway:8080
+	}
+
+	# Anything else (e.g. someone opening the API address in a browser)
+	# goes to the website when FRONTEND_URL is set.
+	handle {
+		@site expression `{env.FRONTEND_URL} != ""`
+		redir @site {env.FRONTEND_URL} 302
+		respond "Chess Reviewer API" 200
+	}
+}

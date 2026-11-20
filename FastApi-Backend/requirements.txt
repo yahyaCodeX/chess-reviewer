@@ -1,0 +1,14 @@
+# ── FastAPI framework ────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1          # ASGI server (includes websockets & httptools)
+
+# ── Database ─────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10            # PostgreSQL driver  (binary = no libpq-dev needed)
+
+# ── Kafka ────────────────────────────────────────────────────────────────────
+confluent-kafka==2.6.1             # C-backed client — fastest Python Kafka lib
+
+# ── Utilities ────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1               # Load .env for local development
+chess==1.11.2                      # PGN validation + duplicate-game fingerprint

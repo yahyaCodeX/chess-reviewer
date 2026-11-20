@@ -26,3 +26,21 @@ Thumbs.db
 # Large binaries - download separately from https://stockfishchess.org/download/
 ai-worker/engine/stockfish.exe
 
+# SSL certificates — contain private keys, never commit!
+FastApi-Backend/certs/
+**/src/main/resources/certs/
+
+# Python virtualenvs
+**/.venv/
+**/venv/
+
+# Test caches
+**/.pytest_cache/
+
+# Belt and braces: never commit keys/certs anywhere in the repo
+*.pem
+*.key
+service.cert
+
+# Deployment secrets
+deploy/.env
