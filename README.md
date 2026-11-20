@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/YOUR-VIDEO-URL-HERE
 - 🔗 **Shareable review links** (`/review/<id>`). Anyone can open a finished review.
 - 📥 **Import from Chess.com** (search by username) or **Lichess** (paste a game link).
 - 💾 **Download the annotated PGN**, with `!!`, `?`, `??` symbols, `[%eval]` tags and "Best was…" comments.
-- 🔊 **Move sounds** (synthesised in the browser, no audio files), and a **mobile-first layout**.
+- 🔊 **Move sounds** (real CC0 recordings: move, capture, check, castle, promotion), and a **mobile-first layout**.
 
 **Built for a public deployment**
 - ♻️ **No double work.** The same game submitted twice returns the saved review instantly, without running Stockfish again.
@@ -101,7 +101,7 @@ shared links open instantly, and repeated games are never analysed twice.
 | API gateway | Python 3.12, FastAPI, SQLAlchemy, `python-chess`, `confluent-kafka` |
 | AI worker | Python, `python-chess`, Stockfish (UCI), `confluent-kafka` |
 | Messaging | Apache Kafka (KRaft) |
-| Database | PostgreSQL 15 |
+| Database | PostgreSQL 16 |
 | Delivery | Docker Compose, Caddy (automatic HTTPS), GitHub Actions CI |
 
 > The first version of the gateway was written in **Spring Boot (Java 17)**. It's kept in
@@ -177,14 +177,15 @@ domain. Not needed when both are served from the same origin.
 
 ## ☁️ Deployment
 
-- **Backend (Azure VM):** `docker-compose.prod.yml` runs Caddy (HTTPS), the gateway and the worker.
-  Open ports 80/443, set a DNS label, and run
-  `SITE_DOMAIN=<your-domain> docker compose -f docker-compose.prod.yml up -d --build`.
-- **Frontend (Vercel/Netlify, optional):** deploy `frontend/` with `VITE_API_URL=https://<backend>`.
-  `vercel.json` and `public/_redirects` already route `/review/*` links. Set `CORS_ORIGINS` on the
-  backend to the site's URL.
-- Stopping the VM when it isn't needed is fine. Everything restarts automatically, and the frontend
-  shows a friendly "server is asleep" message meanwhile.
+Step-by-step guide: **[DEPLOY.md](DEPLOY.md)**.
+
+- **Backend (one Azure VM):** [`docker-compose.prod.yml`](docker-compose.prod.yml) runs Caddy
+  (automatic HTTPS), the gateway, the worker, PostgreSQL and Kafka, with memory limits sized for
+  a 4 GB B2s VM. Settings live in `deploy/.env` (template: [`deploy/.env.example`](deploy/.env.example)).
+- **Website (Vercel):** root directory `frontend`, env `VITE_API_URL=https://<api-domain>`.
+  `vercel.json` routes `/review/*` share links.
+- Stopping the VM when it isn't needed is fine. Everything restarts automatically, and the
+  website shows a friendly "server is asleep" message meanwhile.
 
 ---
 

@@ -168,10 +168,14 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Lock down in production with a comma-separated list, e.g.
 #   CORS_ORIGINS=https://chess.example.com,http://localhost:5173
+# and optionally a regex for Vercel preview deployments, e.g.
+#   CORS_ORIGIN_REGEX=https://chess-reviewer(-[a-z0-9-]+)?\.vercel\.app
 _cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+_cors_regex = os.getenv("CORS_ORIGIN_REGEX") or None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_regex,
     allow_credentials="*" not in _cors_origins,  # browsers reject credentials + wildcard
     allow_methods=["*"],
     allow_headers=["*"],

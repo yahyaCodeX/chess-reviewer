@@ -41,3 +41,6 @@ FastApi-Backend/certs/
 *.pem
 *.key
 service.cert
+
+# Deployment secrets
+deploy/.env
